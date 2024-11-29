@@ -11,7 +11,7 @@ def load_data(path):
 
 if __name__ == "__main__":
     
-    file_path = 'Data Files/train_data.csv'
+    file_path = 'Data Files/V2/train_data.csv'
 
     # Load the CSV file into a DataFrame
     data = load_data(file_path)

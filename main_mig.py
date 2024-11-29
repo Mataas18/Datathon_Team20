@@ -87,7 +87,7 @@ X_test = X_test.astype(float)
 # Create DataLoader
 train_dataset = TabularDataset(X_train.values, y_train.values)
 test_dataset = TabularDataset(X_test.values, y_test.values)
-train_loader = DataLoader(train_dataset, batch_size=128, shuffle=True)
+train_loader = DataLoader(train_dataset, batch_size=1028, shuffle=True)
 test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -96,7 +96,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 input_dim = X_train.shape[1]
 model = FeedForwardNN(input_dim).to(device)
 criterion = torch.nn.MSELoss()
-optimizer = AdamWScheduleFree(model.parameters(), lr=0.001)
+optimizer = AdamWScheduleFree(model.parameters(), lr=0.01)
 # optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
 # Training loop

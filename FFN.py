@@ -1,5 +1,5 @@
 from Functions.load_data import load_data
-from metric_files.helper import compute_metric, compute_zero_actuals
+from metric_files.helper import compute_metric
 
 data_path = 'Data Files/V2/train_data.csv'
 # Load data
@@ -11,8 +11,6 @@ import torch
 from torch.utils.data import DataLoader, Dataset
 from sklearn.model_selection import train_test_split
 from schedulefree import AdamWScheduleFree
-from Functions.cyme_loss import CYMELoss
-from Functions.categorical_cleaning import convert_categorical_to_numerical
 
 # Define Dataset class
 class TabularDataset(Dataset):
@@ -33,7 +31,7 @@ class FeedForwardNN(torch.nn.Module):
     def __init__(self, input_dim, hidden_dim=64):
         super(FeedForwardNN, self).__init__()
         self.network = torch.nn.Sequential(
-            torch.nn.Dropout(0.2),
+            torch.nn.Dropout(0.25),
             torch.nn.Linear(input_dim, hidden_dim),
             torch.nn.ReLU(),
             torch.nn.Linear(hidden_dim, 1)  # Assuming binary classification
@@ -70,7 +68,6 @@ print(f"Deleted {nan_count} rows with missing values")
 # Handle categorical variables
 dates = X["date"]
 X = pd.get_dummies(X, drop_first=True)
-X = convert_categorical_to_numerical(X)
 
 # Split into training and testing sets
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
@@ -78,9 +75,8 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_
 # Normalize data by dividing by the standard deviation of the training set only for numerical columns
 numerical_cols = X_train.select_dtypes(include=['float64', 'int64']).columns
 X_train_std = X_train[numerical_cols].std()
-X_train_mean = X_train[numerical_cols].mean()
-X_train[numerical_cols] = (X_train[numerical_cols] - X_train_mean )/ X_train_std
-X_test[numerical_cols] = (X_test[numerical_cols] - X_train_mean) / X_train_std  # Normalize test set with training set std
+X_train[numerical_cols] = X_train[numerical_cols] / X_train_std
+X_test[numerical_cols] = X_test[numerical_cols] / X_train_std  # Normalize test set with training set std
 y_train_std = y_train.std()
 y_train = y_train / y_train_std  # Normalize target by dividing by the std
 
@@ -92,27 +88,20 @@ X_test = X_test.astype(float)
 train_dataset = TabularDataset(X_train.values, y_train.values)
 test_dataset = TabularDataset(X_test.values, y_test.values)
 train_loader = DataLoader(train_dataset, batch_size=128, shuffle=True)
-test_loader = DataLoader(test_dataset, batch_size=128, shuffle=False)
+test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Model, Loss, Optimizer
 input_dim = X_train.shape[1]
 model = FeedForwardNN(input_dim).to(device)
-# criterion = torch.nn.MSELoss()
-# criterion = torch.nn.L1Loss()
-criterion = CYMELoss()
-optimizer = AdamWScheduleFree(model.parameters(), lr=0.0005)
+criterion = torch.nn.MSELoss()
+optimizer = AdamWScheduleFree(model.parameters(), lr=0.001)
 # optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
-import matplotlib.pyplot as plt
-
-# Training and Test Loss lists
-train_losses = []
-test_losses = []
-
-# Training loop with test loss computation
-epochs = 15
+# Training loop
+epochs = 20
+optimizer.train()
 for epoch in range(epochs):
     model.train()
     running_loss = 0.0
@@ -125,34 +114,20 @@ for epoch in range(epochs):
         optimizer.step()
         running_loss += loss.item()
 
-    train_loss = running_loss / len(train_loader)
-    train_losses.append(train_loss)
+    print(f"Epoch {epoch + 1}/{epochs}, Loss: {running_loss / len(train_loader):.4f}")
 
-    # Evaluate on the test set
-    model.eval()
-    test_loss = 0.0
-    with torch.no_grad():
-        for inputs, labels in test_loader:
-            inputs, labels = inputs.to(device), labels.to(device)
-            outputs = model(inputs)
-            loss = criterion(outputs.squeeze(), labels)
-            test_loss += loss.item()
+# Evaluate on the test set and compute loss
+model.eval()
+optimizer.eval()
+test_loss = 0.0
+with torch.no_grad():
+    for inputs, labels in test_loader:
+        inputs, labels = inputs.to(device), labels.to(device)
+        outputs = model(inputs)
+        loss = criterion(outputs.squeeze(), labels)
+        test_loss += loss.item()
 
-    test_loss /= len(test_loader)
-    test_losses.append(test_loss)
-
-    print(f"Epoch {epoch + 1}/{epochs}, Train Loss: {train_loss:.4f}, Test Loss: {test_loss:.4f}")
-
-# Plot training and test losses
-plt.figure(figsize=(10, 6))
-plt.plot(range(1, epochs + 1), train_losses, label="Train Loss")
-plt.plot(range(1, epochs + 1), test_losses, label="Test Loss")
-plt.xlabel("Epoch")
-plt.ylabel("Loss")
-plt.title("Training and Test Loss Over Epochs")
-plt.legend()
-plt.grid(True)
-plt.show()
+print(f"Test Loss: {test_loss / len(test_loader):.4f}")
 
 
 # get all predictions of the test set
@@ -164,32 +139,16 @@ for inputs, _ in test_loader:
 
 
 # add predictions to data
+X_test["zero_actuals"] = 0
 X_test['prediction'] = [p * y_train_std for p in predictions]
 X_test['target'] = y_test
+
 
 # insert dates again in their original place
 X_test.insert(0, "date", dates[X_test.index])
 X_test.insert(1, "cluster_nl", cluster_nl[X_test.index])
 
-compute_zero_actuals(X_train, X_test, cluster_nl)
-
 metric = compute_metric(X_test)
 
 print(metric)
 
-
-# load test data
-test_data_path = 'Data Files/V2/submission_data.csv'
-
-# Load data
-df_test = load_data(test_data_path)
-
-# check target column
-# df_test.replace(-1, np.nan, inplace=True)
-
-# visualize data in the colum 'target'
-plt.hist(df_test['target'], bins=100)
-plt.title("Histogram of Target Column")
-plt.xlabel("Target Value")
-plt.ylabel("Frequency")
-plt.show()

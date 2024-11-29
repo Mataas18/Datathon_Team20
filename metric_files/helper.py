@@ -18,6 +18,15 @@ def _CYME(df: pd.DataFrame) -> float:
 
     return 1/2*(yearly_error + monthly_error)
 
+def _CYME_LOSS(prediction, target, clusters_nl) -> float:
+    """ Compute the CYME metric, that is 1/2(median(yearly error) + median(monthly error))"""
+
+    yearly_agg = df.groupby("cluster_nl")[["target", "prediction"]].sum().reset_index()
+    yearly_error = abs((yearly_agg["target"] - yearly_agg["prediction"])/yearly_agg["target"]).median()
+
+    monthly_error = abs((df["target"] - df["prediction"])/df["target"]).median()
+
+    return 1/2*(yearly_error + monthly_error)
 
 def _metric(df: pd.DataFrame) -> float:
     """Compute metric of submission.
@@ -52,6 +61,20 @@ def compute_metric(submission: pd.DataFrame) -> Tuple[float, float]:
 
     return _metric(submission)
 
+def compute_zero_actuals(train_data: pd.DataFrame, submission: pd.DataFrame, cluster_nl) -> pd.DataFrame:
+    """Compute zero actuals.
+
+    :param submission: Prediction. Requires columns: ['cluster_nl', 'date', 'target', 'prediction']
+    :return: Dataframe with zero_actuals column.
+    """
+    # Divide cluster_nl in tests and train by the indexes
+    train_cluster_nl = cluster_nl[train_data.index]
+    test_cluster_nl = cluster_nl[submission.index]
+
+    # Check if cluster_nl in test has appears in train
+    submission["zero_actuals"] = test_cluster_nl.isin(train_cluster_nl)
+       
+    return submission
 
 if __name__ == "__main__":
     # Load data

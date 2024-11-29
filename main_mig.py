@@ -12,7 +12,9 @@ from torch.utils.data import DataLoader, Dataset
 from sklearn.model_selection import train_test_split
 from schedulefree import AdamWScheduleFree
 from Functions.cyme_loss import CYMELoss
-from Functions.categorical_cleaning import convert_categorical_to_numerical
+### CAMBIOS IVAN
+# from Functions.categorical_cleaning import convert_categorical_to_numerical
+from Preprocessing import convert_categorical_to_numerical, date_codification
 
 # Define Dataset class
 class TabularDataset(Dataset):
@@ -69,8 +71,11 @@ print(f"Deleted {nan_count} rows with missing values")
 
 # Handle categorical variables
 dates = X["date"]
-X = pd.get_dummies(X, drop_first=True)
-X = convert_categorical_to_numerical(X)
+### CAMBIOS IVAN
+# X = pd.get_dummies(X, drop_first=True)
+# Codification of date column --> month and month + year * 12
+X = date_codification(X)
+X = convert_categorical_to_numerical(X, 'indication') # Multi-label binary matrix
 
 # Split into training and testing sets
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)

@@ -97,7 +97,6 @@ input_dim = X_train.shape[1]
 model = FeedForwardNN(input_dim).to(device)
 criterion = torch.nn.MSELoss()
 optimizer = AdamWScheduleFree(model.parameters(), lr=0.01)
-# optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
 # Training loop
 epochs = 15

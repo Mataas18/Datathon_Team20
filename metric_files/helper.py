@@ -73,8 +73,18 @@ def compute_zero_actuals(train_data: pd.DataFrame, submission: pd.DataFrame, clu
 
     # Check if cluster_nl in test has appears in train
     submission["zero_actuals"] = test_cluster_nl.isin(train_cluster_nl)
+
+    # print the percentage of zero_actuals
+    print(f"Percentage of zero actuals: {submission['zero_actuals'].mean()}")
        
     return submission
+
+import os
+def prepare_submission(submission):
+    SAVE_PATH = "./Data Files/submissions/"
+    # add date tp submission
+    ATTEMPT = "attempt_" + str(len([f for f in os.listdir(SAVE_PATH) if "attempt" in f]) + 1)
+    submission.to_csv(SAVE_PATH + f"submission_{ATTEMPT}.csv", sep=",", index=False)
 
 if __name__ == "__main__":
     # Load data

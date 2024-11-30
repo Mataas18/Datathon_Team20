@@ -1,5 +1,5 @@
 from Functions.load_data import load_data
-from metric_files.helper import compute_metric
+from metric_files.helper import compute_metric, prepare_submission
 
 data_path = 'Data Files/V2/train_data.csv'
 # Load data
@@ -151,4 +151,6 @@ X_test.insert(1, "cluster_nl", cluster_nl[X_test.index])
 metric = compute_metric(X_test)
 
 print(metric)
+
+prepare_submission(X_test)
 

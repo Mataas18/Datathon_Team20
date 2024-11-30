@@ -1,7 +1,7 @@
 from Functions.load_data import load_data
-from metric_files.helper import compute_metric
+from metric_files.helper import compute_metric, compute_zero_actuals, prepare_submission
 
-data_path = 'Data Files/train_data.csv'
+data_path = 'Data Files/V2/train_data.csv'
 # Load data
 data = load_data(data_path)
 
@@ -56,3 +56,14 @@ metric = compute_metric(validation_data)
 
 print(metric)
 
+test_data_path = 'Data Files/V2/submission_data.csv'
+
+df_test = load_data(test_data_path)
+
+predictions = model.predict(df_test)
+
+df_test['prediction'] = predictions
+
+compute_zero_actuals(train_data, df_test, data['cluster_nl'])
+
+prepare_submission(df_test)

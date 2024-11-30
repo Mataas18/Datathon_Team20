@@ -188,3 +188,63 @@ def format_dataframe2train(X, fillna_value=0):
         X = X.fillna(fillna_value)
 
     return X
+
+
+
+def NN_preprocess(df, indication_codes=None, X_train = None):
+    # Replace with your data source
+    df.replace(-1, np.nan, inplace=True)
+
+    cluster_nl = df["cluster_nl"]
+    # Drop the column 'cluster_nl'
+    if 'cluster_nl' in df.columns:
+        df.drop(columns=['cluster_nl'], inplace=True)
+
+    # Split features and target
+    target_column = 'target'  # Replace with your target column
+    X = df.drop(columns=[target_column])
+    y = df[target_column]
+
+    # Handle missing values
+    if X_train is None:
+        for col in X.columns:
+            if X[col].dtype in ['float64', 'int64']:  # Numerical columns
+                X[col].fillna(X[col].mean(), inplace=True)
+    else:
+        for col in X.columns:
+            if X[col].dtype in ['float64', 'int64']:  # Numerical columns
+                X[col].fillna(X_train[col].mean(), inplace=True)
+
+    # if there are still nan values, delete the rows and count them
+    nan_count = X.isnull().sum().sum()
+    X.dropna(inplace=True)
+    y = y[X.index]
+
+    print(f"Deleted {nan_count} rows with missing values")
+
+    # Handle categorical variables
+    dates = X["date"]
+    ### CAMBIOS IVAN
+    # X = pd.get_dummies(X, drop_first=True)
+    # Codification of date column --> month and month + year * 12
+    X = date_codification(X)
+
+    X = X.drop(columns=['launch_date','ind_launch_date']) ## M
+
+    ## Take the unique codes for each categorical column
+    if indication_codes is None:
+        indication_codes = generate_unique_codes(X, 'indication')
+    # indication_codes = generate_unique_codes(X, 'indication')
+
+    X = convert_categorical_to_multilabel(X, 'indication', indication_codes) # Multi-label binary matrix
+
+    if X_train is not None:
+        # concatenate X and X_train to get the same columns with get dummies and get X back
+        X_con = pd.concat([X, X_train], axis=0)
+        X_con = pd.get_dummies(X_con, drop_first=True)
+        X = X_con.loc[0:X.shape[0]-1]
+    else:
+        X = pd.get_dummies(X, drop_first=True)
+    # Split into training and testing sets
+
+    return X, y, dates, cluster_nl, indication_codes

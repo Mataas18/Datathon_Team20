@@ -1,20 +1,20 @@
+import torch
+import numpy as np
+import pandas as pd
+from Functions.cyme_loss import CYMELoss
 from Functions.load_data import load_data
+from schedulefree import AdamWScheduleFree
+from torch.utils.data import DataLoader, Dataset
+from sklearn.model_selection import train_test_split
 from metric_files.helper import compute_metric, compute_zero_actuals
+### CAMBIOS IVAN
+# from Functions.categorical_cleaning import convert_categorical_to_numerical
+from Preprocessing import convert_categorical_to_multilabel, date_codification, generate_unique_codes, format_dataframe2train
 
 data_path = 'Data Files/V2/train_data.csv'
 # Load data
 df = load_data(data_path)
 
-import pandas as pd
-import numpy as np
-import torch
-from torch.utils.data import DataLoader, Dataset
-from sklearn.model_selection import train_test_split
-from schedulefree import AdamWScheduleFree
-from Functions.cyme_loss import CYMELoss
-### CAMBIOS IVAN
-# from Functions.categorical_cleaning import convert_categorical_to_numerical
-from Preprocessing import convert_categorical_to_multilabel, date_codification, generate_unique_codes, format_dataframe2train
 
 # Define Dataset class
 class TabularDataset(Dataset):
@@ -82,6 +82,7 @@ indication_codes = generate_unique_codes(X, 'indication')
 
 X = convert_categorical_to_multilabel(X, 'indication', indication_codes) # Multi-label binary matrix
 X = pd.get_dummies(X, drop_first=True)
+train_columns = X.columns
 # Split into training and testing sets
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
@@ -126,7 +127,7 @@ train_losses = []
 test_losses = []
 
 # Training loop with test loss computation
-epochs = 15
+epochs = 50
 for epoch in range(epochs):
     model.train()
     optimizer.train()
@@ -193,18 +194,72 @@ metric = compute_metric(X_test)
 
 print(metric)
 
-# load test data
+# Load data for testing the model 
+
 test_data_path = 'Data Files/V2/submission_data.csv'
 
-# Load data
 df_test = load_data(test_data_path)
 
-# check target column
-# df_test.replace(-1, np.nan, inplace=True)
+## Making the same transformations as in the training data
+cluster_nl = df_test["cluster_nl"]
+# Drop the column 'cluster_nl'
+if 'cluster_nl' in df_test.columns:
+    df_test.drop(columns=['cluster_nl'], inplace=True)
+    
+# Handle missing values
+for col in df_test.columns:
+    if df_test[col].dtype in ['float64', 'int64']:  # Numerical columns
+        df_test[col].fillna(df_test[col].mean(), inplace=True)
+        
+# Handle categorical variables
+dates = df_test["date"]
+### CAMBIOS IVAN
+# Codification of date column --> month and month + year * 12
+df_test = date_codification(df_test)
 
-# visualize data in the colum 'target'
-plt.hist(df_test['target'], bins=100)
-plt.title("Histogram of Target Column")
-plt.xlabel("Target Value")
-plt.ylabel("Frequency")
-plt.show()
+df_test = df_test.drop(columns=['launch_date','ind_launch_date']) ## M
+
+## Take the unique codes for each categorical column
+df_test = convert_categorical_to_multilabel(df_test, 'indication', indication_codes) # Multi-label binary matrix
+df_test = pd.get_dummies(df_test, drop_first=True)
+
+# Agregar columnas faltantes en df_test
+missing_cols = set(train_columns) - set(df_test.columns)
+for c in missing_cols:
+    df_test[c] = 0
+
+# Asegurar el mismo orden de columnas
+df_test = df_test[train_columns]
+
+# Normalize data by dividing by the standard deviation of the training set only for numerical columns
+df_test[numerical_cols] = (df_test[numerical_cols] - X_train_mean )/ X_train_std
+
+## Convert the multi-label arrays in multiple columns with 0 and 1 values
+df_test = format_dataframe2train(df_test)
+
+X_test = df_test.astype(float)
+
+# Create DataLoader
+test_dataset = TabularDataset(X_test.values)
+test_loader = DataLoader(test_dataset, batch_size=128, shuffle=False)
+
+# get all predictions of the test set
+predictions = []
+for inputs in test_loader:
+    inputs = inputs.to(device)
+    outputs = model(inputs)
+    predictions.extend(outputs.flatten().tolist())
+    
+# add predictions to data
+X_test['target'] = [p * y_train_std for p in predictions]
+
+# Calculate the mean and std of the target column for df and df_test
+target_df = df['target']
+target_df_test = X_test['target']
+mean_df = target_df.mean()
+std_df = target_df.std()
+mean_df_test = target_df_test.mean()
+std_df_test = target_df_test.std()
+
+print(f"Mean and std of target column in df: {mean_df:.4f}, {std_df:.4f}")
+print(f"Mean and std of target column in df_test: {mean_df_test:.4f}, {std_df_test:.4f}")

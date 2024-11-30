@@ -80,8 +80,9 @@ def generate_unique_codes(df, column):
 
 def convert_categorical_to_multilabel(df, column, unique_codes=None):
     """
-    Convierte una columna categórica a un formato multilabel (vector binario) 
-    basado en una lista de códigos únicos.
+    Convierte una columna categórica a un formato multilabel (vector binario)
+    basado en una lista de códigos únicos y devuelve el DataFrame expandido
+    con las columnas en formato numerado (columna_0, columna_1, etc.).
 
     Args:
         df (pd.DataFrame): DataFrame que contiene la columna de interés.
@@ -89,7 +90,7 @@ def convert_categorical_to_multilabel(df, column, unique_codes=None):
         unique_codes (list): Lista de etiquetas únicas para generar el vector multilabel.
 
     Returns:
-        pd.DataFrame: DataFrame con la columna convertida en formato multilabel.
+        pd.DataFrame: DataFrame con las columnas expandidas en formato numerado.
     """
     # Verificar que unique_codes sea proporcionado
     if unique_codes is None:
@@ -113,11 +114,15 @@ def convert_categorical_to_multilabel(df, column, unique_codes=None):
     
     df[f'{column}_multilabel'] = df[f'{column}_parsed'].apply(create_multilabel_vector)
     
-    # Paso 3: Eliminar columnas auxiliares si no son necesarias
-    df = df.drop(columns=[f'{column}_parsed'])
-    df = df.drop(columns=[column])
+    # Paso 3: Expandir el vector multilabel en columnas separadas
+    expanded_df = pd.DataFrame(df[f'{column}_multilabel'].tolist(), 
+                               columns=[f"{column}_{i}" for i in range(len(unique_codes))])
     
-    return df
+    # Paso 4: Combinar con el DataFrame original (sin la columna inicial)
+    df = df.drop(columns=[f'{column}_parsed', f'{column}_multilabel', column]).reset_index(drop=True)
+    result_df = pd.concat([df, expanded_df], axis=1)
+    
+    return result_df
 
 def date_codification(df):
     """

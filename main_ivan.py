@@ -79,29 +79,11 @@ X = X.drop(columns=['launch_date','ind_launch_date']) ## M
 
 ## Take the unique codes for each categorical column
 indication_codes = generate_unique_codes(X, 'indication')
-brand_codes = generate_unique_codes(X, 'brand')
-drug_id_codes = generate_unique_codes(X, 'drug_id')
-country_codes = generate_unique_codes(X, 'country')
-corporation_codes = generate_unique_codes(X, 'corporation')
-therapeutic_area_codes = generate_unique_codes(X, 'therapeutic_area')
 
-# X = pd.get_dummies(X, drop_first=True)
-
+X = convert_categorical_to_multilabel(X, 'indication', indication_codes) # Multi-label binary matrix
+X = pd.get_dummies(X, drop_first=True)
 # Split into training and testing sets
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
-X_train = convert_categorical_to_multilabel(X_train, 'indication', indication_codes) # Multi-label binary matrix
-X_test = convert_categorical_to_multilabel(X_test, 'indication', indication_codes) # Multi-label binary matrix
-X_train = convert_categorical_to_multilabel(X_train, 'brand', brand_codes) # Multi-label binary matrix
-X_test = convert_categorical_to_multilabel(X_test, 'brand', brand_codes) # Multi-label binary matrix
-X_train = convert_categorical_to_multilabel(X_train, 'drug_id', drug_id_codes) # Multi-label binary matrix
-X_test = convert_categorical_to_multilabel(X_test, 'drug_id', drug_id_codes) # Multi-label binary matrix
-X_train = convert_categorical_to_multilabel(X_train, 'country', country_codes) # Multi-label binary matrix
-X_test = convert_categorical_to_multilabel(X_test, 'country', country_codes) # Multi-label binary matrix
-X_train = convert_categorical_to_multilabel(X_train, 'corporation', corporation_codes) # Multi-label binary matrix
-X_test = convert_categorical_to_multilabel(X_test, 'corporation', corporation_codes) # Multi-label binary matrix
-X_train = convert_categorical_to_multilabel(X_train, 'therapeutic_area', therapeutic_area_codes) # Multi-label binary matrix
-X_test = convert_categorical_to_multilabel(X_test, 'therapeutic_area', therapeutic_area_codes) # Multi-label binary matrix
 
 # Normalize data by dividing by the standard deviation of the training set only for numerical columns
 numerical_cols = X_train.select_dtypes(include=['float64', 'int64']).columns
